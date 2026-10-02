@@ -1,0 +1,30 @@
+# Python / environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+
+# Data and indexes (large, rebuildable, backed up to Dropbox)
+db/
+ocr_output/
+*.sqlite
+*.sqlite3
+*.pdf
+*.csv
+*.md
+
+
+# Padoue scrape
+padoue_scrape/
+
+# Backups and run outputs
+*.bak
+*.pre-*
+*.log
+dryrun_*.txt
+*_dryrun_report.txt
+
+# Personal / editor
+.claude/settings.local.json
+.vscode/
