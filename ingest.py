@@ -1592,6 +1592,7 @@ class Store:
         from chromadb.config import Settings
         DB_DIR.mkdir(exist_ok=True)
         self.client = chromadb.PersistentClient(path=str(DB_DIR), settings=Settings(anonymized_telemetry=False))
+        self.max_batch = self.client.get_max_batch_size()
         self.db = sqlite3.connect(KEYWORD_DB)
         if rebuild:
             if COLLECTION_NAME in [c.name for c in self.client.list_collections()]:
@@ -1601,6 +1602,11 @@ class Store:
         self.col = self.client.get_or_create_collection(
             COLLECTION_NAME, metadata={"hnsw:space": "cosine", "embedding_model": MODEL_NAME})
         self.db.executescript(SCHEMA)
+
+    def _slices(self, n: int):
+        """Index ranges no larger than Chroma's max batch size."""
+        for i in range(0, n, self.max_batch):
+            yield slice(i, i + self.max_batch)
 
     def known(self) -> dict[str, tuple[str, str, list[str]]]:
         return {sid: (c, m, json.loads(ids)) for sid, c, m, ids in
@@ -1623,8 +1629,9 @@ class Store:
             self.col.delete(where={"source_id": s.id})
             self._delete_sql(s.id)
         if chunks:
-            self.col.add(ids=[c.id for c in chunks], embeddings=embeddings,
-                         documents=[c.text for c in chunks], metadatas=[c.meta for c in chunks])
+            ids, docs, metas = [c.id for c in chunks], [c.text for c in chunks], [c.meta for c in chunks]
+            for s in self._slices(len(chunks)):
+                self.col.add(ids=ids[s], embeddings=embeddings[s], documents=docs[s], metadatas=metas[s])
         for c in chunks:
             self._insert_sql(c)
         self._record(sources)
@@ -1633,7 +1640,9 @@ class Store:
     def update_meta(self, sources: list[Source]) -> None:
         chunks = [c for s in sources for c in s.chunks]
         if chunks:
-            self.col.update(ids=[c.id for c in chunks], metadatas=[c.meta for c in chunks])
+            ids, metas = [c.id for c in chunks], [c.meta for c in chunks]
+            for s in self._slices(len(chunks)):
+                self.col.update(ids=ids[s], metadatas=metas[s])
         for c in chunks:
             self.db.execute("UPDATE chunks SET meta=?, printed_page=?, language=? WHERE chunk_id=?",
                             (json.dumps(c.meta, ensure_ascii=False), c.meta["printed_page"],
