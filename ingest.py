@@ -318,6 +318,7 @@ def _pages_field(doc: pymupdf.Document, item: dict) -> tuple[list[str], str]:
 
 TEXT_PAGE_MARK = re.compile(r"^## p\. ?(\S*) \(#(\d+)\) #+[ \t]*$", re.M)   # HathiTrust: "## p. 7 (#47) ####"
 TEXT_HEADER_END = "=" * 60                                                # MQDQ: end of the header block
+TEXT_NO_OCR = "%%NO-OCR"       # first line of a born-digital edition in format A (tei_to_txt.py): ocr is False
 TEXT_VERSE = re.compile(r"^\[(\d+)\] ")
 TEXT_HEADING = re.compile(r"^(#{2,3}) (.+)$")
 TEXT_FOLIO = re.compile(r"\[foglio ([^\]]*)\]")
@@ -877,12 +878,17 @@ class Builder:
 
         def build() -> list[Chunk]:
             text = path.read_bytes().decode("utf-8-sig").replace("\r\n", "\n").replace("\r", "\n")
+            no_ocr = text.split("\n", 1)[0].rstrip() == TEXT_NO_OCR
+            if no_ocr:
+                text = text.split("\n", 1)[1] if "\n" in text else ""
             fmt = detect_text_format(text)
             report = {"attachment_key": a["key"], "item_key": info.key, "file": path.name, "format": fmt,
-                      "skipped": [], "review": [], "details": {}}
+                      "no_ocr": no_ocr, "skipped": [], "review": [], "details": {}}
+            if no_ocr:
+                report["details"]["ocr"] = f"no ({TEXT_NO_OCR} marker; gibberish filter off)"
             pieces, expected, repeated = getattr(self, f"_text_{fmt}")(text, report)
-            base = dict(info.base_meta(), source_type="text_file", attachment_key=a["key"], ocr=fmt == "pages",
-                        location="", chunk_seq=0)
+            base = dict(info.base_meta(), source_type="text_file", attachment_key=a["key"],
+                        ocr=fmt == "pages" and not no_ocr, location="", chunk_seq=0)
             # A piece is (text, location, printed) or, for format E, (text, location, printed, extra meta).
             chunks = [Chunk(f"{a['key']}:t:c{seq + 1}", t, dict(base, location=loc, printed_page=printed,
                                                                 chunk_seq=seq, **(extra[0] if extra else {})))
@@ -917,7 +923,8 @@ class Builder:
         pieces, repeated, prev_label = [], 0, None
         for (hathi_label, scan, body), clean, score in zip(pages, cleaned, scores):
             label = overrides.get(scan, hathi_label)
-            long = nonws(clean) > GIBBERISH_MIN_CHARS
+            # The gibberish test is for OCR'd plates; a born-digital edition (%%NO-OCR) has none.
+            long = nonws(clean) > GIBBERISH_MIN_CHARS and not report.get("no_ocr")
             # Repeats are judged on Hathi's own labels, so the plates after an overridden page still count.
             reason = ("repeated label" if hathi_label and hathi_label == prev_label and scan not in overrides else
                       "too little text" if not enough_text(clean) else
