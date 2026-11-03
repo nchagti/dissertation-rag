@@ -316,7 +316,8 @@ def _pages_field(doc: pymupdf.Document, item: dict) -> tuple[list[str], str]:
 
 # --------------------------------------------------------- plain-text files
 
-TEXT_PAGE_MARK = re.compile(r"^## p\. ?(\S*) \(#(\d+)\) #+[ \t]*$", re.M)   # HathiTrust: "## p. 7 (#47) ####"
+# HathiTrust: "## p. 7 (#47) ####"; RIS columns (ris_columns.py): "## col. 687 (#3) ####", "## col. 687, notes (#3) ####"
+TEXT_PAGE_MARK = re.compile(r"^## (?:p\. ?(\S*)|(col\. \d+(?:, notes)?)) \(#(\d+)\) #+[ \t]*$", re.M)
 TEXT_HEADER_END = "=" * 60                                                # MQDQ: end of the header block
 TEXT_NO_OCR = "%%NO-OCR"       # first line of a born-digital edition in format A (tei_to_txt.py): ocr is False
 TEXT_VERSE = re.compile(r"^\[(\d+)\] ")
@@ -911,26 +912,33 @@ class Builder:
         return [(t, location, printed) for t in parts], repeated
 
     def _text_pages(self, text: str, report: dict):
-        """Format A (HathiTrust): one page = one or more chunks, cited by the marker's printed label."""
+        """Format A (HathiTrust): one page = one or more chunks, cited by the marker's printed label.
+
+        A column marker ("## col. 687 (#3) ####") is cited by its column instead, as the chunk's location.
+        """
         marks = list(TEXT_PAGE_MARK.finditer(text))
-        pages = [("", 0, text[:marks[0].start()])] if text[:marks[0].start()].strip() else []
-        pages += [(m.group(1), int(m.group(2)), text[m.end():marks[i + 1].start() if i + 1 < len(marks) else len(text)])
+        pages = [("", "", 0, text[:marks[0].start()])] if text[:marks[0].start()].strip() else []
+        pages += [(m.group(1) or "", m.group(2) or "", int(m.group(3)),
+                   text[m.end():marks[i + 1].start() if i + 1 < len(marks) else len(text)])
                   for i, m in enumerate(marks)]
-        cleaned = [clean_text(body) for _, _, body in pages]
+        cleaned = [clean_text(body) for *_, body in pages]
         scores = page_vocab_scores(cleaned)
         expected = nonws(text) - sum(nonws(m.group(0)) for m in marks)
         overrides = HATHI_LABEL_OVERRIDES.get(report["attachment_key"], {})
         pieces, repeated, prev_label = [], 0, None
-        for (hathi_label, scan, body), clean, score in zip(pages, cleaned, scores):
+        for (hathi_label, column, scan, body), clean, score in zip(pages, cleaned, scores):
             label = overrides.get(scan, hathi_label)
-            # The gibberish test is for OCR'd plates; a born-digital edition (%%NO-OCR) has none.
-            long = nonws(clean) > GIBBERISH_MIN_CHARS and not report.get("no_ocr")
+            # The gibberish test is for OCR'd plates; a born-digital edition (%%NO-OCR) has none, nor do the
+            # RIS column files (OCR'd from known text pages; in a file of a few dozen columns the shared-
+            # vocabulary score drops below the threshold on ordinary Latin text).
+            long = nonws(clean) > GIBBERISH_MIN_CHARS and not report.get("no_ocr") and not column
             # Repeats are judged on Hathi's own labels, so the plates after an overridden page still count.
             reason = ("repeated label" if hathi_label and hathi_label == prev_label and scan not in overrides else
                       "too little text" if not enough_text(clean) else
                       "gibberish" if long and score < GIBBERISH_SCORE else None)
             prev_label = hathi_label
-            entry = {"label": label, "scan": scan, "chars": nonws(clean), "score": round(score, 3) if long else None}
+            entry = {"label": column or label, "scan": scan, "chars": nonws(clean),
+                     "score": round(score, 3) if long else None}
             if reason:
                 if enough_text(clean):
                     cv = self.detector.compute_language_confidence_values(clean)
@@ -940,7 +948,7 @@ class Builder:
                 continue
             if long and score < GIBBERISH_REVIEW:
                 report["review"].append(entry)
-            p, r = self._split(clean, "", label)
+            p, r = self._split(clean, column, label)
             pieces += p
             repeated += r
         report["details"]["pages"] = f"{len(pages)} ({len(pages) - len(report['skipped'])} indexed)"

@@ -8,6 +8,7 @@ __pycache__/
 # Data and indexes (large, rebuildable, backed up to Dropbox)
 db/
 ocr_output/
+ris_x/
 *.sqlite
 *.sqlite3
 *.pdf
@@ -34,3 +35,4 @@ De_gestis_Italicorum.txt
 Traditio_civitate_Paduae.xml
 Traditio_civitate_Paduae.txt
 tei_conversion_report.txt
+xml-txt/

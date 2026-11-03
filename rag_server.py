@@ -118,7 +118,7 @@ def as_list(v) -> list | None:
 def page_of(meta: dict) -> str:
     """ "p. <printed>" or "PDF p. <n>"; empty for snapshots, metadata and unpaged chunks (pdf_page 0).
 
-    Text files give their location ("vv. 1-14", "a. 1208, ...", "fol. I recto") or, for paged
+    Text files give their location ("vv. 1-14", "a. 1208, ...", "fol. I recto", "col. 687") or, for paged
     editions, "p. <printed>"."""
     if meta.get("source_type") == "text_file":
         if meta.get("location"):
@@ -517,7 +517,7 @@ def do_get_context(chunk_id: str, pages_before: int = 1, pages_after: int = 1) -
                   for i in ids if i in texts]
         return capped({"hit": hit, "neighboring_chunks": chunks,
                        "note": "pages_before/pages_after count chunks here, in file order (a text file is chunked "
-                               "by page, verse range, chapter or folio); consecutive chunks may repeat a few lines."},
+                               "by page, column, verse range, chapter or folio); consecutive chunks may repeat a few lines."},
                       "neighboring_chunks")
     prefix = re.sub(r":c\d+$", "", chunk_id)
     if prefix != chunk_id and m["source_type"] in ("snapshot", "child_note"):
@@ -657,8 +657,9 @@ Rules for using these results:
   from a tool. If nothing relevant comes back, say so plainly instead of filling in from general knowledge.
 - Always cite with the result's `citation` line. It says "p. N" for a printed page and "PDF p. N" when no printed
   page is known; write "PDF p." in that case, never a bare "p.". Text-file editions (text_file) are cited by
-  verse range ("vv. 1-14"), year and chapter ("a. 1208, ..."), folio ("fol. I recto") or printed page ("p. N");
-  keep that form and never turn a verse range into a page.
+  verse range ("vv. 1-14"), year and chapter ("a. 1208, ..."), folio ("fol. I recto"), column ("col. 687")
+  or printed page ("p. N"); keep that form and never turn a verse range or a column into a page. A location
+  ending ", notes" ("col. 687, notes") is the editors' notes and apparatus, not the work's own text.
 - Keep three voices apart: the source's text (pdf_text, snapshot, text_file); passages the user highlighted
   ("Highlighted:" lines quote the source); and the USER's OWN words: zotero_note, adobe_annotation comments,
   child_note, and every "My comment:" or "Tags:" line. Never attribute the user's comments to the author.
@@ -694,8 +695,9 @@ async def search(query: str, n: int = 10, mode: str = "hybrid", source_types: li
     How to use the results:
     - Cite ONLY what this tool returns, always with the result's `citation` line. It uses "p. N" for printed
       pages and "PDF p. N" when no printed page is known: write "PDF p.", never a bare "p.". text_file results
-      may instead give a verse range ("vv. 1-14"), a year and chapter ("a. 1208, ...") or a folio ("fol. I
-      recto"); cite those as given. Never cite a page or source that did not come back from a tool.
+      may instead give a verse range ("vv. 1-14"), a year and chapter ("a. 1208, ..."), a folio ("fol. I
+      recto") or a column ("col. 687"); cite those as given. "col. N, notes" is the editors' notes and
+      apparatus to that column, not the work's own text. Never cite a page or source that did not come back from a tool.
     - `voice` says whose words a result is. zotero_note, adobe_annotation comments, child_note and every
       "My comment:"/"Tags:" line are the USER's words, not the author's; "Highlighted:" lines quote the source.
     - If a pdf_text result has my_annotations_on_page > 0, page_annotation_tags or has_ink_on_page, mention
