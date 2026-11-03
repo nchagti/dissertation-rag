@@ -28,3 +28,9 @@ dryrun_*.txt
 # Personal / editor
 .claude/settings.local.json
 .vscode/
+# TEI editions and their converted text (copies are in Zotero; tei_to_txt.py rebuilds the .txt)
+De_gestis_Italicorum.xml
+De_gestis_Italicorum.txt
+Traditio_civitate_Paduae.xml
+Traditio_civitate_Paduae.txt
+tei_conversion_report.txt
