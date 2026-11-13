@@ -320,7 +320,7 @@ def _pages_field(doc: pymupdf.Document, item: dict) -> tuple[list[str], str]:
 TEXT_PAGE_MARK = re.compile(r"^## (?:p\. ?(\S*)|(col\. \d+(?:, notes)?)) \(#(\d+)\) #+[ \t]*$", re.M)
 TEXT_HEADER_END = "=" * 60                                                # MQDQ: end of the header block
 TEXT_NO_OCR = "%%NO-OCR"       # first line of a born-digital edition in format A (tei_to_txt.py): ocr is False
-TEXT_VERSE = re.compile(r"^\[(\d+)\] ")
+TEXT_VERSE = re.compile(r"^\[(\d+)[a-z0-9]*\] ")    # "[392a] ", "[5b] ": an edition's suffixed verse (drama_tei_to_txt.py)
 TEXT_HEADING = re.compile(r"^(#{2,3}) (.+)$")
 TEXT_FOLIO = re.compile(r"\[foglio ([^\]]*)\]")
 TEXT_ANNO = re.compile(r"^\s*Anno (?:itaque )?Domini \d{4}")
